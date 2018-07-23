@@ -3,7 +3,7 @@ from util.afrl import *
 from multiprocessing import Process, Pool, cpu_count
 from scipy.spatial.distance import euclidean
 from functools import partial
-from numpy import mean, var
+from numpy import mean, var, dot
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -24,6 +24,7 @@ parser.add_argument('--dir', default='data', help='input data directory. default
 parser.add_argument('--tdir', default='data_out', help='output data directory. default: data_out')
 parser.add_argument('--jdir', default='data_out_json', help='json data directory. default: data_out_json')
 parser.add_argument('--fun', default='projection', help='synthetic feature function. default: projection.')
+parser.add_argument('--metric', default='euclidean', help='function on centroids. only used for projection function.')
 parser.add_argument('--centroids', default=None, help='centroid file.')
 args = parser.parse_args()
 
@@ -46,7 +47,7 @@ X = df.values
 
 def activation(d, c, x, key):
     p = np.array(c[key]['centroid'])
-    return d(x[c[key]['mask']], p) / c[key]['var']
+    return d(x[c[key]['mask']], p) # / c[key]['var']
 
 def activations(keys, cs, d, i):
     f = partial(activation, d, cs, X[i])
@@ -86,6 +87,11 @@ functions = {
     'min' : min, 'max' : max, 'sum' : sum
 }
 
+metrics = {
+    'euclidean' : euclidean,
+    'dot' : dot
+}
+
 def get_means(feats, key):
     mod,mask = feats[key]['mod'],feats[key]['mask']
     x = Xmods[mod] if mod != 'AllMod' else X
@@ -121,13 +127,13 @@ def get_cs(synthFeatures):
         synthFeatures[key]['var'] = cv[i]['v']
     return synthFeatures
 
-def addSynth(synthFeatures, fun=args.fun, metric=euclidean, fcs=None):
+def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
     print(' > adding synthetic features (%s) to %s' % (fun, args.file))
     if fun == 'projection':
         if fcs == None:
             jname = os.path.splitext(args.file)[0] + '_centroid.json'
-            print(' > loading centroids from %s' % jname)
             if os.path.exists(jname):
+                print(' > loading centroids from %s' % jname)
                 with open(jname,'r') as f:
                     cs = json.load(f)
             else:
@@ -140,7 +146,10 @@ def addSynth(synthFeatures, fun=args.fun, metric=euclidean, fcs=None):
             with open(fcs,'r') as f:
                 cs = json.load(f)
         cols = cs.keys()
-        f = partial(functions[fun], cols, cs, metric)
+        if not metric in metrics:
+            print(' ! metric %s not found. using euclidean.')
+            metric = 'euclidean'
+        f = partial(functions[fun], cols, cs, metrics[metric])
     else:
         if not fun in functions:
             print(' ! unknown function %s. using mean' % fun)
@@ -152,11 +161,17 @@ def addSynth(synthFeatures, fun=args.fun, metric=euclidean, fcs=None):
     x = list(pool.map(f, tqdm(range(df.shape[0]))))
     pool.close()
     pool.join()
+
+    if fun == 'projection':
+        pre = '_'.join([fun,metric])
+        f_out = '_'.join([name,fun,metric]) + '.csv'
+    else:
+        pre = fun
+        f_out = '_'.join([name,fun]) + '.csv'
     # x = list(map(f, tqdm(range(df.shape[0]))))
-    df0 = pd.DataFrame(np.vstack(x), columns=[fun + '_' + net for net in cols], index=df.index)
+    df0 = pd.DataFrame(np.vstack(x), columns=[pre + '_' + net for net in cols], index=df.index)
     dfs = pd.concat([dfgt, df0], axis=1)
     name,ext = os.path.splitext(args.file)
-    f_out = name + '_' + fun + ext
     print(' > writing to %s' % f_out)
     with open(f_out,'w') as f:
         writer = csv.writer(f)
@@ -167,12 +182,12 @@ def addSynth(synthFeatures, fun=args.fun, metric=euclidean, fcs=None):
             writer.writerow(dfs.iloc[i].tolist())
     return f_out
 
-def jsonSynth(fun=args.fun, fcs=None, metric=euclidean):
+def jsonSynth(fun=args.fun, fcs=None, metric='euclidean'):
     synthFeatures = jsonAddFeatures()
     return addSynth(synthFeatures, metric=metric, fun=fun, fcs=fcs)
 
 if __name__ == '__main__':
-    jsonSynth(args.fun, args.centroids)
+    jsonSynth(args.fun, args.centroids, args.metric)
     # synthFeatures = jsonAddFeatures()
     # cs = get_cs(synthFeatures)
     # vs = get_vs(synthFeatures)

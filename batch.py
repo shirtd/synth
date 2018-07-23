@@ -64,8 +64,8 @@ def batch(args):
     jout = os.path.join(dir, '_'.join([fname, args.col, args.fun])+'.json')
     print('writing to %s' % jout)
     with open(jout,'w') as f:
-        json.dump(res, f)
-    return res
+        json.dump(jdict, f)
+    return jdict
 
 if __name__ == '__main__':
     res = batch(parser['predict'].parse_args())

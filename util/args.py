@@ -71,7 +71,7 @@ parser['predict'].add_argument('-T', '--train', default='data/SNR10_0_synth_ph.c
 parser['predict'].add_argument('-t', '--test', default='data/SNR10_1_synth_ph.csv', help='testing data file. default: data/SNR10_1_synth_ph.csv.')
 parser['predict'].add_argument('-r', '--rows', type=int, default=None, help='number of rows to test per modulation. default: None (all).')
 parser['predict'].add_argument('-g', '--gt', type=int, default=1, help='ground truth (target) column index. default: 1.')
-parser['predict'].add_argument('-k', '--k', default=10, help='number of nearest neighbors. default: 10.')
+parser['predict'].add_argument('-k', '--k', default=15, help='number of nearest neighbors. default: 10.')
 parser['predict'].add_argument('-m', '--m', default=24, help='number of classes. default: 24')
 parser['predict'].add_argument('-f', '--fun', default='euclidean', help='knn metric function.')
 parser['predict'].add_argument('-c', '--col', default='allbut', help='column set. default: allbut.')

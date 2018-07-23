@@ -12,11 +12,11 @@ LENS = ['Max', 'Raw Entropy', 'Approximate Kurtosis', 'Entropy', 'Mean',
         'Variance', 'Gaussian Density', 'Median', 'L1 Centrality',
         'L-Infinity Centrality', 'Neighborhood Graph Lens']
 
-LENSPAIR = ['Neighborhood Lens', 'PCA coord', 'MDS coord', 'Metric PCA coord']
+LENSPAIR = ['Neighborhood Lens', 'MDS coord', 'Metric PCA coord', 'PCA coord']
 
-METRIC = ['Euclidean (L2)', 'Manhattan (L1)', 'Chebyshev (L-Infinity)', 'Angle',
-        'Correlation', 'IQR Normalized Euclidean', 'Variance Normalized Euclidean']
-        # 'Norm Correlation','Norm Angle',
+METRIC = ['Euclidean (L2)', 'Manhattan (L1)', 'Chebyshev (L-Infinity)', 'Correlation',
+            'IQR Normalized Euclidean', 'Variance Normalized Euclidean'] #, 'Angle']
+        # 'Norm Correlation','Norm Angle', 'Angle',
         # 'Absolute Correlation', 'Cosine', 'Categorical Cosine']
         # 'Hamming', 'Jaccard', 'Binary Jaccard']
         # 'Distance Correlation']
@@ -56,7 +56,8 @@ def batch(args):
         metrics = sorted(res[lens].keys(),key=lambda x: res[lens][x]['score'])
         for metric in metrics:
             print('\t%s score: %0.4f' % (metric, res[lens][metric]['score']))
-    res['args'] = args.__dict__
+    jdict = {'args' : args.__dict__, 'data' : res, 'mods' : MODS, 'mtoi' : MTOI, 'snrs' : SNRS,
+            'columns' : pred.columns, 'truth' : {'mod' : pred._truth.tolist(), 'snr' : pred._snrs.tolist()}}
     dir,ftrain = os.path.split(args.train)
     ftest = os.path.splitext(os.path.split(args.train)[1])[0]
     fname = os.path.splitext(ftrain)[0] + '_' + ftest

@@ -24,6 +24,7 @@ parser.add_argument('--dir', default='data', help='input data directory. default
 parser.add_argument('--tdir', default='data_out', help='output data directory. default: data_out')
 parser.add_argument('--jdir', default='data_out_json', help='json data directory. default: data_out_json')
 parser.add_argument('--fun', default='projection', help='synthetic feature function. default: projection.')
+parser.add_argument('--centroids', default=None, help='centroid file.')
 args = parser.parse_args()
 
 if args.snr == None:
@@ -39,15 +40,17 @@ print(' > reading file %s' % args.file)
 dfall = pd.read_csv(args.file)
 dfgt = dfall[ICOLS]
 df = dfall.drop(ICOLS, axis=1)
+Xmods = {mod : df.loc[dfgt['MOD'] == mod].values for mod in MODS}
 X = df.values
 # X = df.apply(zscore).values
 
-def activation(d, c, x, cols):
-    return d(x[list(cols)], c[cols])
+def activation(d, c, x, key):
+    p = np.array(c[key]['centroid'])
+    return d(x[c[key]['mask']], p) / c[key]['var']
 
-def activations(feats, cs, d, i):
+def activations(keys, cs, d, i):
     f = partial(activation, d, cs, X[i])
-    return np.array(list(map(f, feats)))
+    return np.array(list(map(f, keys)))
 
 # def crossover(a, b, full_row):
 #     row = full_row[a:b]
@@ -70,9 +73,9 @@ def possum(row):
 def negsum(row):
     return abs(sum(filter(lambda x: x < 0, row)))
 
-def addfeats(fun, feats, i):
+def addfeats(fun, feats, keys, i):
     x = X[i]
-    return np.array(list(map(lambda c: fun(x[list(c)]), feats)))
+    return np.array(list(map(lambda k: fun(x[feats[k]['mask']]), keys)))
 
 functions = {
     'projection' : activations, 'crossover' : crossover,
@@ -83,49 +86,74 @@ functions = {
     'min' : min, 'max' : max, 'sum' : sum
 }
 
-def get_means(cols):
-    return np.array([mean(X[:,col]) for col in cols])
+def get_means(feats, key):
+    mod,mask = feats[key]['mod'],feats[key]['mask']
+    x = Xmods[mod] if mod != 'AllMod' else X
+    y = [x[:,col] for col in mask]
+    return {'c' : [mean(z) for z in y], 'v' : var(y)} # [mean(x[:,col]) for col in mask]
 
 def jsonAddFeatures(jdir=args.jdir, synthFeatures={}):
     print(' > generating synthetic features from %s' % jdir)
     for fname in os.listdir(jdir):
+        mod = fname.split(':', 1)[0]
         fpath = os.path.join(jdir, fname)
         with open(fpath, 'r') as f:
             jfdict = json.load(f)
+        # synthFeatures[mod] = {net : [COL_DICT[i] for i in jfdict[net]] for net in jfdict}
         for net in jfdict:
-            key = tuple([COL_DICT[i] for i in jfdict[net]])
-            if not key in synthFeatures:
-                synthFeatures[key] = [net]
-            else:
-                synthFeatures[key].append(net)
+            synthFeatures[net] = {'mod' : mod, 'mask' : [COL_DICT[i] for i in jfdict[net]]}
+            # if not key in synthFeatures:
+            #     synthFeatures[key] = [val]
+            # else:
+            #     synthFeatures[key].append(val)
     return synthFeatures
 
 def get_cs(synthFeatures):
     feats = synthFeatures.keys()
+    f = partial(get_means, synthFeatures)
     pool = Pool()
-    c = list(pool.map(get_means, tqdm(feats)))
+    cv = list(pool.map(f, tqdm(feats)))
     pool.close()
     pool.join()
-    return dict(zip(feats,c))
+    # cv = list(map(f, tqdm(feats)))
+    for i,key in enumerate(feats):
+        synthFeatures[key]['centroid'] = cv[i]['c']
+        synthFeatures[key]['var'] = cv[i]['v']
+    return synthFeatures
 
-def addSynth(synthFeatures, fun=args.fun, metric=euclidean):
+def addSynth(synthFeatures, fun=args.fun, metric=euclidean, fcs=None):
     print(' > adding synthetic features (%s) to %s' % (fun, args.file))
     if fun == 'projection':
-        print(' > calculating means')
-        cs = get_cs(synthFeatures)
-        f = partial(functions[fun], synthFeatures, cs, metric)
+        if fcs == None:
+            jname = os.path.splitext(args.file)[0] + '_centroid.json'
+            print(' > loading centroids from %s' % jname)
+            if os.path.exists(jname):
+                with open(jname,'r') as f:
+                    cs = json.load(f)
+            else:
+                print(' > calculating centroids')
+                cs = get_cs(synthFeatures)
+                with open(jname, 'w') as f:
+                    json.dump(cs, f)
+        else:
+            print(' > loading centroids from %s' % fcs)
+            with open(fcs,'r') as f:
+                cs = json.load(f)
+        cols = cs.keys()
+        f = partial(functions[fun], cols, cs, metric)
     else:
         if not fun in functions:
             print(' ! unknown function %s. using mean' % fun)
             fun = 'mean'
-        f = partial(addfeats, functions[fun], synthFeatures)
+        cols = synthFeatures.keys()
+        f = partial(addfeats, functions[fun], synthFeatures, cols)
     print(' > calculating synthetic features (%s)' % fun)
     pool = Pool()
     x = list(pool.map(f, tqdm(range(df.shape[0]))))
     pool.close()
     pool.join()
-    nets = synthFeatures.values()
-    df0 = pd.DataFrame(np.vstack(x), columns=[fun + '_' + net[0] for net in nets], index=df.index)
+    # x = list(map(f, tqdm(range(df.shape[0]))))
+    df0 = pd.DataFrame(np.vstack(x), columns=[fun + '_' + net for net in cols], index=df.index)
     dfs = pd.concat([dfgt, df0], axis=1)
     name,ext = os.path.splitext(args.file)
     f_out = name + '_' + fun + ext
@@ -139,12 +167,12 @@ def addSynth(synthFeatures, fun=args.fun, metric=euclidean):
             writer.writerow(dfs.iloc[i].tolist())
     return f_out
 
-def jsonSynth(fun=args.fun, metric=euclidean):
+def jsonSynth(fun=args.fun, fcs=None, metric=euclidean):
     synthFeatures = jsonAddFeatures()
-    return addSynth(synthFeatures, metric=metric, fun=fun)
+    return addSynth(synthFeatures, metric=metric, fun=fun, fcs=fcs)
 
 if __name__ == '__main__':
-    jsonSynth(args.fun)
+    jsonSynth(args.fun, args.centroids)
     # synthFeatures = jsonAddFeatures()
     # cs = get_cs(synthFeatures)
     # vs = get_vs(synthFeatures)

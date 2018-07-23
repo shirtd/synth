@@ -107,7 +107,8 @@ class LocalPredictor:
             self.rowi = self.group['row_indices']
 
         df = train_data.iloc[self.rowi,:]
-        self.crows = {c : df.index[df[self.gtl] == c].tolist() for c in self.classes}
+        # self.crows = {c : df.index[df[self.gtl] == c].tolist() for c in self.classes}
+        self.columns = [df.columns[i] for i in self.dati]
         train_data = None
 
         # ground truth column
@@ -121,14 +122,14 @@ class LocalPredictor:
         part = [test_raw.loc[test_raw[self.gtl] == c] for c in self.classes]
         if self.rows == None or max(map(lambda x: x.shape[0], part)) < self.rows:
             if self.rows != None: print(' ! desired rows > number of rows. using all.')
-            if test_raw.shape[0] > 100000:
-                test_data = pd.concat([x.sample(n=695) for x in part])
-            else:
-                test_data = test_raw
-        else:
-            test_data = pd.concat([x.sample(n=self.rows) for x in part])
+            # if test_raw.shape[0] > 100000:
+            #     test_data = pd.concat([x.sample(n=695) for x in part])
+            # else:
+            test_data = test_raw
+        # else:
+        #     test_data = pd.concat([x.sample(n=self.rows) for x in part])
         test_raw = None
-
+        self._snrs = test_data['SNR'].values
         self._truth = test_data.iloc[:,self.gti].values
         self._data = test_data.iloc[:,self.dati].values
         test_data = None
@@ -186,13 +187,6 @@ class LocalPredictor:
         pool.close()
         pool.join()
         self.w = np.vstack(w)
-        # self.w = np.zeros((m,n),dtype=float)
-        # for x in w: self.w[i,:] = x
-        # for i,c in tqdm(enumerate(self.classes)):
-        #     col = self.source.columns[self.source.colname_to_ids[MODS[i]]]
-        #     self.source.create_coloring(name=MODS[i], column_id=col['index'])
-        #     self.w[i,:] = self.net.get_coloring_values(name=MODS[i])
-        #     self.source.delete_coloring(name=MODS[i])
 
     # Function that performs a majority of the rest of Ayasdi topological_predict.
     # Does not allow for interpolation_source possibilities, as containing_nodes is implemented elsewhere and containing_groups (deprecated).
@@ -250,6 +244,7 @@ class LocalPredictor:
         ret['probability_matrix'] = p
         z,w = zip(*[max(enumerate(p[i,:]), key=lambda x: x[1]) for i in range(p.shape[0])])
         ret['predictions'],ret['confidence'],ret['weights'] = z,w,self.w
+        # ret['gt'] = self._truth
         return ret
 
     def prob_matrix(self, z):
@@ -259,6 +254,7 @@ class LocalPredictor:
             us,cs = np.unique(np.hstack(x), return_counts=True)
             for j,l in enumerate(self.classes): # float(c)/self.K *
                 p[i,j] = sum(self.w[j,u] for u,c in zip(us,cs))
+        p = p / p.sum(axis=1, keepdims=1)
         p = np.vectorize(lambda x: max(min(x, 1-1E-15), 1E-15))(p)
         return p / p.sum(axis=1, keepdims=1)
 

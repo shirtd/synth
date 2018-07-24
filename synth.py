@@ -37,6 +37,16 @@ if args.file == None:
 def zscore(col):
     return (col - col.mean())/col.std(ddof=0)
 
+# def getiq(mask):
+#     imask = filter(lambda i: i < 1024, mask)
+#     qmask = filter(lambda i: i > 1024, mask)
+#     iqmask = [i + 1024 for i in imask if i + 1024 not in qmask] + qmask
+#     qimask = imask + [i - 1024 for i in qmask if i - 1024 not in imask]
+#     return iqmask,qimask
+#
+# def iqmean(i,q):
+#     return mean(i),mean(q)
+
 print(' > reading file %s' % args.file)
 dfall = pd.read_csv(args.file)
 dfgt = dfall[ICOLS]
@@ -45,13 +55,20 @@ Xmods = {mod : df.loc[dfgt['MOD'] == mod].values for mod in MODS}
 X = df.values
 # X = df.apply(zscore).values
 
-def activation(d, c, x, key):
-    p = np.array(c[key]['centroid'])
-    return d(x[c[key]['mask']], p) # / c[key]['var']
+def activation(d, p, c):
+    return d(p[c['mask']],c['centroid'])
+# def activation(d, c, p, key):
+#     return d(p[c[key]['mask']],c[key]['centroid'])
+#     return d(p, c[key])
+#     # p = np.array(c[key]['centroid'])
+#     # return d(x[c[key]['mask']], p) # / c[key]['var']
 
 def activations(keys, cs, d, i):
-    f = partial(activation, d, cs, X[i])
-    return np.array(list(map(f, keys)))
+    # f = partial(activation, d, cs, X[i])
+    f = partial(activation, d, X[i])
+    return np.fromiter((f(cs[k]) for k in keys), np.float)#, count=len(keys))
+    # return np.fromiter(map(f, keys), np.float, count=len(keys))
+    # return np.array(list(map(f, keys)))
 
 # def crossover(a, b, full_row):
 #     row = full_row[a:b]
@@ -76,7 +93,38 @@ def negsum(row):
 
 def addfeats(fun, feats, keys, i):
     x = X[i]
-    return np.array(list(map(lambda k: fun(x[feats[k]['mask']]), keys)))
+    f = lambda k: fun(x[feats[k]['mask']])
+    return np.fromiter((f(k) for k in keys), np.float, count=len(keys))
+    # return np.array(list(map(lambda k: fun(x[feats[k]['mask']]), keys)))
+
+def euclidean_raw(p,c):
+    x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+    return euclidean(x,y)
+
+def dot_raw(p,c):
+    x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+    return dot(x,y)
+
+# def norm_dot(p,c):
+#     x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+def norm_dot(x,y):
+    return dot(x,y) / (dot(x,x)*dot(y,y))
+
+# def complex_angle(p,c):
+#     # iqc = zip(c['icentroid'],c['qcentroid'])
+#     # iqp = zip(p[c['imask']],p[c['qmask']])
+#     i = np.sum(np.array(c['icentroid'])*np.array(p[c['imask']]))
+#     q = np.sum(-1*np.array(c['qcentroid'])*np.array(p[c['qmask']]))
+#     a1 = np.angle(np.complex(i,q))
+#     a2 = np.angle(dot(np.vectorize(complex)(p[c['imask']],p[c['qmask']]),np.vectorize(complex)(c['icentroid'],c['qcentroid'])))
+#     if a1 != a2:
+#         print(str(a1) +' != '+ str(a2))
+#         sys.exit()
+#     return np.angle(np.complex(i,q))
+#     # return np.angle(np.sum(np.array([np.complex(a[0]*b[0], -1*a[1]*b[1]) for a,b in zip(iqp,iqc)])))
+#     # x = np.vectorize(complex)(p[c['imask']],p[c['qmask']])
+#     # y = np.vectorize(complex)(c['icentroid'],c['qcentroid'])
+#     # return np.angle(dot(x,y))
 
 functions = {
     'projection' : activations, 'crossover' : crossover,
@@ -88,15 +136,22 @@ functions = {
 }
 
 metrics = {
-    'euclidean' : euclidean,
-    'dot' : dot
+    'euclidean' : euclidean_raw,
+    'dot' : dot_raw,
+    'angle' : norm_dot #,
+    # 'zangle' : complex_angle
 }
 
 def get_means(feats, key):
     mod,mask = feats[key]['mod'],feats[key]['mask']
     x = Xmods[mod] if mod != 'AllMod' else X
-    y = [x[:,col] for col in mask]
-    return {'c' : [mean(z) for z in y], 'v' : var(y)} # [mean(x[:,col]) for col in mask]
+    # imask,qmask = getiq(mask)
+    # zmean = [iqmean(x,icol,qcol) for icol,qcol in zip(imask,qmask)]
+    # yi =
+    # yq = [
+    # iqy = np.vectorize(complex)(yi, yq)
+    return {'c' : [mean(x[:,col]) for col in mask]} # , 'imask' : imask, 'qmask' : qmask,
+            # 'ic' : [mean(x[:,col]) for col in imask], 'qc' : [mean(x[:,col]) for col in qmask]} #[iqmean(z) for z in iqy]} #, 'iqv' : var(iqy)} # [mean(x[:,col]) for col in mask]
 
 def jsonAddFeatures(jdir=args.jdir, synthFeatures={}):
     print(' > generating synthetic features from %s' % jdir)
@@ -117,14 +172,20 @@ def jsonAddFeatures(jdir=args.jdir, synthFeatures={}):
 def get_cs(synthFeatures):
     feats = synthFeatures.keys()
     f = partial(get_means, synthFeatures)
+    # cv = list(map(f, tqdm(feats)))
     pool = Pool()
     cv = list(pool.map(f, tqdm(feats)))
     pool.close()
     pool.join()
-    # cv = list(map(f, tqdm(feats)))
     for i,key in enumerate(feats):
         synthFeatures[key]['centroid'] = cv[i]['c']
-        synthFeatures[key]['var'] = cv[i]['v']
+        # # synthFeatures[key]['var'] = cv[i]['v']
+        # # synthFeatures[key]['iqcentroid'] = cv[i]['iqc']
+        # synthFeatures[key]['icentroid'] = cv[i]['ic']
+        # synthFeatures[key]['qcentroid'] = cv[i]['qc']
+        # synthFeatures[key]['imask'] = cv[i]['imask']
+        # synthFeatures[key]['qmask'] = cv[i]['qmask']
+        # # synthFeatures[key]['iqvar'] = cv[i]['iqv']
     return synthFeatures
 
 def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
@@ -139,6 +200,7 @@ def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
             else:
                 print(' > calculating centroids')
                 cs = get_cs(synthFeatures)
+                print(' |-> saving to %s' % jname)
                 with open(jname, 'w') as f:
                     json.dump(cs, f)
         else:
@@ -149,6 +211,8 @@ def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
         if not metric in metrics:
             print(' ! metric %s not found. using euclidean.')
             metric = 'euclidean'
+        for key in cols:
+            cs[key]['centroid'] = np.array(cs[key]['centroid'])
         f = partial(functions[fun], cols, cs, metrics[metric])
     else:
         if not fun in functions:
@@ -157,11 +221,11 @@ def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
         cols = synthFeatures.keys()
         f = partial(addfeats, functions[fun], synthFeatures, cols)
     print(' > calculating synthetic features (%s)' % fun)
+    # x = list(map(f, tqdm(range(df.shape[0]))))
     pool = Pool()
     x = list(pool.map(f, tqdm(range(df.shape[0]))))
     pool.close()
     pool.join()
-
     if fun == 'projection':
         pre = '_'.join([fun,metric])
         f_out = '_'.join([name,fun,metric]) + '.csv'
@@ -187,12 +251,20 @@ def jsonSynth(fun=args.fun, fcs=None, metric='euclidean'):
     return addSynth(synthFeatures, metric=metric, fun=fun, fcs=fcs)
 
 if __name__ == '__main__':
-    jsonSynth(args.fun, args.centroids, args.metric)
-    # synthFeatures = jsonAddFeatures()
-    # cs = get_cs(synthFeatures)
-    # vs = get_vs(synthFeatures)
-    # f = partial(activations, synthFeatures, cs, vs, euclidean)
-    # # f = partial(addfeats, np.mean, synthFeatures)
-
-# # %prun x = np.vstack(map(f,range(2)))
-# # %prun activations(synthFeatures, cs, vs, euclidean, 0)
+    # jsonSynth(args.fun, args.centroids, args.metric)
+    synthFeatures = jsonAddFeatures()
+    # feats = synthFeatures.keys()[:10]
+    # f = partial(get_means, synthFeatures)
+    # # %prun cv = list(map(f, tqdm(feats)))
+    cs = get_cs(synthFeatures)
+    for key in cs.keys():
+        cs[key]['centroid'] = np.array(cs[key]['centroid'])
+    # jname = os.path.splitext(args.file)[0] + '_centroid.json'
+    # if os.path.exists(jname):
+    #     print(' > loading centroids from %s' % jname)
+    #     with open(jname,'r') as f:
+    #         cs = json.load(f)
+    f = partial(functions['projection'], cs.keys(), cs, metrics['angle'])
+    # # %prun x = np.vstack(map(f,range(2)))
+    # f = partial(addfeats, np.mean, synthFeatures)
+    # # %prun activations(synthFeatures, cs, vs, euclidean, 0)

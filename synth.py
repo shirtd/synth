@@ -56,7 +56,6 @@ X = df.values
 # X = df.apply(zscore).values
 
 def activation(d, p, c):
-    print c['mask']
     return d(p[c['mask']],c['centroid'])
 # def activation(d, c, p, key):
 #     return d(p[c[key]['mask']],c[key]['centroid'])

@@ -104,5 +104,4 @@ gc.collect()
 
 if args.upload:
     src = upload(train_out)
-    cols = [col['name'] for col in src.columns if not col in ICOLS]
-    src.create_column_set(column_list=cols, name='allbut')
+    src.create_column_set(column_list=cols_new, name='allbut')

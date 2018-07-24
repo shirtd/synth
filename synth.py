@@ -56,6 +56,7 @@ X = df.values
 # X = df.apply(zscore).values
 
 def activation(d, p, c):
+    print c['mask']
     return d(p[c['mask']],c['centroid'])
 # def activation(d, c, p, key):
 #     return d(p[c[key]['mask']],c[key]['centroid'])
@@ -97,12 +98,13 @@ def addfeats(fun, feats, keys, i):
     return np.fromiter((f(k) for k in keys), np.float, count=len(keys))
     # return np.array(list(map(lambda k: fun(x[feats[k]['mask']]), keys)))
 
-def euclidean_raw(p,c):
-    x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+def euclidean_raw(x,y):#(p,c):
+    # x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
     return euclidean(x,y)
 
-def dot_raw(p,c):
-    x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+# def dot_raw(p,c):
+#     x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+def dot_raw(x,y):
     return dot(x,y)
 
 # def norm_dot(p,c):

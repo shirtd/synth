@@ -251,20 +251,20 @@ def jsonSynth(fun=args.fun, fcs=None, metric='euclidean'):
     return addSynth(synthFeatures, metric=metric, fun=fun, fcs=fcs)
 
 if __name__ == '__main__':
-    # jsonSynth(args.fun, args.centroids, args.metric)
-    synthFeatures = jsonAddFeatures()
-    # feats = synthFeatures.keys()[:10]
-    # f = partial(get_means, synthFeatures)
-    # # %prun cv = list(map(f, tqdm(feats)))
-    cs = get_cs(synthFeatures)
-    for key in cs.keys():
-        cs[key]['centroid'] = np.array(cs[key]['centroid'])
-    # jname = os.path.splitext(args.file)[0] + '_centroid.json'
-    # if os.path.exists(jname):
-    #     print(' > loading centroids from %s' % jname)
-    #     with open(jname,'r') as f:
-    #         cs = json.load(f)
-    f = partial(functions['projection'], cs.keys(), cs, metrics['angle'])
+    jsonSynth(args.fun, args.centroids, args.metric)
+    # synthFeatures = jsonAddFeatures()
+    # # feats = synthFeatures.keys()[:10]
+    # # f = partial(get_means, synthFeatures)
+    # # # %prun cv = list(map(f, tqdm(feats)))
+    # cs = get_cs(synthFeatures)
+    # for key in cs.keys():
+    #     cs[key]['centroid'] = np.array(cs[key]['centroid'])
+    # # jname = os.path.splitext(args.file)[0] + '_centroid.json'
+    # # if os.path.exists(jname):
+    # #     print(' > loading centroids from %s' % jname)
+    # #     with open(jname,'r') as f:
+    # #         cs = json.load(f)
+    # f = partial(functions['projection'], cs.keys(), cs, metrics['angle'])
     # # %prun x = np.vstack(map(f,range(2)))
     # f = partial(addfeats, np.mean, synthFeatures)
     # # %prun activations(synthFeatures, cs, vs, euclidean, 0)

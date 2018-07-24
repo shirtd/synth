@@ -225,7 +225,8 @@ def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
     pool = Pool()
     x = list(pool.map(f, tqdm(range(df.shape[0]))))
     pool.close()
-    pool.join()
+    pool.join()    
+    name,ext = os.path.splitext(args.file)
     if fun == 'projection':
         pre = '_'.join([fun,metric])
         f_out = '_'.join([name,fun,metric]) + '.csv'
@@ -235,7 +236,6 @@ def addSynth(synthFeatures, fun=args.fun, metric='euclidean', fcs=None):
     # x = list(map(f, tqdm(range(df.shape[0]))))
     df0 = pd.DataFrame(np.vstack(x), columns=[pre + '_' + net for net in cols], index=df.index)
     dfs = pd.concat([dfgt, df0], axis=1)
-    name,ext = os.path.splitext(args.file)
     print(' > writing to %s' % f_out)
     with open(f_out,'w') as f:
         writer = csv.writer(f)

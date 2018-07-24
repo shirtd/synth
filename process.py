@@ -2,6 +2,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn.preprocessing import StandardScaler
 from util.afrl import upload
+from util.data import ICOLS
 from tqdm import tqdm
 import pandas as pd
 import argparse
@@ -101,4 +102,7 @@ with open(test_out,'a') as f:
 _dftest = None
 gc.collect()
 
-if args.upload: upload(train_out)
+if args.upload:
+    src = upload(train_out)
+    cols = [col['name'] for col in src.columns if not col in ICOLS]
+    src.create_column_set(column_list=cols, name='allbut')

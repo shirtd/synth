@@ -1,19 +1,16 @@
 import matplotlib.pyplot as plt
 from util.data import *
 import pandas as pd
+import sys
 plt.ion()
 
-# plt.figure(1,figsize=(18,9))
-# ax = [plt.subplot(611+i) for i in range(6)]
-# fig, ax = plt.subplots(2,3, sharex=True, sharey=True, figsize=(10,8))
-# iax = {-10: ax[0,0], -6: ax[0,1], -2: ax[0,2], 2: ax[1,2], 6: ax[1,1], 10: ax[1,0]}
 fig, ax = plt.subplots(1,6, sharex=True, sharey=True, figsize=(16,8))
 iax = {-10: ax[0], -6: ax[1], -2: ax[2], 2: ax[3], 6: ax[4], 10: ax[5]}
 
 fig.tight_layout()
 fig.subplots_adjust(wspace=0)
 
-FILE = 'data/chunk7_projection_dot.csv'
+FILE = sys.argv[1] if len(sys.argv[1]) > 1 else 'data/chunk6_projection_euclidean.csv'
 df = pd.read_csv(FILE)
 
 dfm = {mod : df.loc[df['MOD'] == mod] for mod in MODS}

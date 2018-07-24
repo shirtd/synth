@@ -66,7 +66,7 @@ def activation(d, p, c):
 def activations(keys, cs, d, i):
     # f = partial(activation, d, cs, X[i])
     f = partial(activation, d, X[i])
-    return np.fromiter((f(cs[k]) for k in keys), np.float)#, count=len(keys))
+    return np.fromiter((f(cs[k]) for k in keys), np.float, count=len(keys))
     # return np.fromiter(map(f, keys), np.float, count=len(keys))
     # return np.array(list(map(f, keys)))
 
@@ -97,14 +97,14 @@ def addfeats(fun, feats, keys, i):
     return np.fromiter((f(k) for k in keys), np.float, count=len(keys))
     # return np.array(list(map(lambda k: fun(x[feats[k]['mask']]), keys)))
 
-def euclidean_raw(x,y):#(p,c):
-    # x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
-    return euclidean(x,y)
-
-# def dot_raw(p,c):
-#     x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
-def dot_raw(x,y):
-    return dot(x,y)
+# def euclidean_raw(x,y):#(p,c):
+#     # x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+#     return euclidean(x,y)
+#
+# # def dot_raw(p,c):
+# #     x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
+# def dot_raw(x,y):
+#     return dot(x,y)
 
 # def norm_dot(p,c):
 #     x,y = p[c['mask']],c['centroid']#np.array(c['centroid'])
@@ -137,9 +137,8 @@ functions = {
 }
 
 metrics = {
-    'euclidean' : euclidean_raw,
-    'dot' : dot_raw,
-    'angle' : norm_dot #,
+    'euclidean' : euclidean,
+    'dot' : dot, 'angle' : norm_dot #,
     # 'zangle' : complex_angle
 }
 
